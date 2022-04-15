@@ -1,6 +1,4 @@
 ﻿
-using Memory.Win64;
-using Memory.Utils;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -29,15 +27,17 @@ namespace FirstForm
         public static extern int SendMessage(IntPtr hWnd, int wMsg, IntPtr wParam, IntPtr lParam);
         [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
         static extern uint RegisterWindowMessage(string lpString);
+        [DllImport("User32.dll")]
+        public static extern short GetAsyncKeyState(Keys ArrowKeys);
         //memory stuff
         const int PROCESS_WM_READ = 0x0010;
         Process targetProcess;
         IntPtr processHandle;
         //addresses
         IntPtr life_BaseAddr;
-        int[] life_offsets = { 0x0, 0x14, 0x30, 0x10, 0x3c, 0x38, 0x4b0 };
+        int[] life_offsets = { 0x8, 0x4, 0x24, 0x0, 0xBC, 0x4, 0x3C };
         IntPtr maxLife_BaseAddr;
-        int[] maxLife_offsets = { 0x0, 0x14, 0x30, 0x10, 0x3c, 0x38, 0x4b8 };
+        int[] maxLife_offsets = { 0x8, 0x4, 0x24, 0x0, 0xBC, 0x4, 0x40 };
 
         IntPtr mana_BaseAddr;
         int[] mana_offsets = { 0x8, 0x10, 0x48, 0x18, 0x0, 0xC4, 0xE50 };
@@ -46,6 +46,7 @@ namespace FirstForm
 
         IntPtr maxUtamo_BaseAddr;
         int[] maxUtamo_offsets = { 0x1d0 };
+       
 
         //game stats
         private float life=0;
@@ -67,8 +68,11 @@ namespace FirstForm
         public string selectedHtck_mana2;
         public string selectedHtck_mana3;
 
-        //UI
+        
         bool running = false;
+        
+        //CAVEBOT
+        Cavebot cavebot;
         
         public Form1()
         {
@@ -76,7 +80,8 @@ namespace FirstForm
             setupMemoryReading();
             InitializeBackgroundWorker();
             
-            cboxPlay.Checked = true;
+            cbox_Play.Checked = true;
+            
             //MessageBox.Show("Finished");
         }
 
@@ -105,38 +110,31 @@ namespace FirstForm
             
             int bytesRead = 0;
             byte[] buffer = new byte[4];
-            //ReadProcessMemory((int)processHandle,(int)manaBaseAddr, buffer, buffer.Length, ref bytesRead);
-            //MessageBox.Show("baseManaAddr: " + BitConverter.ToInt32(buffer,0).ToString("x")); // OK!
             mana_BaseAddr = baseAddr + 0x00E1D260;
             mana = MemoryUtils.ReadMemoryWithOffsets(processHandle, (int)mana_BaseAddr, mana_offsets);
-            //MessageBox.Show("mana: " + mana);
             maxMana_BaseAddr = baseAddr + 0x00E1D260;
             maxMana = MemoryUtils.ReadMemoryWithOffsets(processHandle, (int)maxMana_BaseAddr, maxMana_offsets);
            // MessageBox.Show("maxMana: " + maxMana);
 
-            life_BaseAddr = baseAddr + 0x00E23F84; 
+            life_BaseAddr = baseAddr + 0x00E1A8AC; 
             //ReadProcessMemory((int)processHandle, (life_BaseAddr, buffer, buffer.Length, ref bytesRead);
             //life = BitConverter.ToInt32(buffer, 0);
             //MessageBox.Show("life: " + life);
 
-            maxLife_BaseAddr = baseAddr + 0x00E23F84;
+            maxLife_BaseAddr = baseAddr + 0x00E1A8AC;
             maxLife = MemoryUtils.ReadMemoryWithOffsets(processHandle, (int)maxLife_BaseAddr, maxLife_offsets);
-            //ReadProcessMemory((int)processHandle, maxLife_BaseAddr, buffer, buffer.Length, ref bytesRead);
-            //maxLife = BitConverter.ToInt32(buffer, 0);
-           // MessageBox.Show("maxLife: " + maxLife);
+       
 
             maxUtamo_BaseAddr = baseAddr + 0xE171FC;
             maxUtamo = MemoryUtils.ReadMemoryWithOffsets(processHandle, (int)maxUtamo_BaseAddr, maxUtamo_offsets);
-            //ReadProcessMemory((int)processHandle, maxUtamo_BaseAddr, buffer, buffer.Length, ref bytesRead);
-          // maxUtamo = BitConverter.ToInt32(buffer, 0);
-           // MessageBox.Show("maxUtamo: " + maxUtamo);
-
-            //Find taleon window and send message key strokes
+      
 
            
             MemoryUtils.SendKeyToWindow(windowClassName, MemoryUtils.VK_N);
-            
 
+            //Init cavebot
+            
+            cavebot = new Cavebot(processHandle,baseAddr, this.listBox1);
 
         }
 
@@ -173,6 +171,10 @@ namespace FirstForm
                 //Console.WriteLine("Thread Running");
                 Life();
                 Mana();
+                cavebot.updateCords();
+                if (cavebot.running) cavebot.caveRun();
+
+               
                 //worker.ReportProgress(progress);
             }
 
@@ -320,5 +322,34 @@ namespace FirstForm
             float.TryParse(textBox.Text, out cura_3);
             Console.WriteLine("cura_3: " + textBox.Text);
         }
+        private void arrow_up_Click(object sender, EventArgs e)
+        {
+            this.cavebot.addStep(DIR.UP);
+            
+        }
+        private void arrow_left_Click(object sender, EventArgs e)
+        {
+           this.cavebot.addStep(DIR.LEFT);
+        }
+
+        private void arrow_down_Click(object sender, EventArgs e)
+        {
+            this.cavebot.addStep(DIR.DOWN);
+        }
+        private void arrow_right_Click(object sender, EventArgs e)
+        {
+            this.cavebot.addStep(DIR.RIGHT);
+        }
+        private void btn_clearList_Click(object sender, EventArgs e)
+        {
+            cavebot.removeStepAt(listBox1.SelectedIndex);
+           // listBox1.Items.RemoveAt(listBox1.SelectedIndex);
+            
+        }
+        private void cbox_caveRun_CheckedChanged(object sender, EventArgs e)
+        {
+           cavebot.running = !cavebot.running;
+        }
+
     }
 }
